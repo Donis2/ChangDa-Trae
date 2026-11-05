@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>常州大学 855 机械设计基础 · 历年真题题库</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div class="grain"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark">855</div>
+    <div class="brand-text">
+      <strong>机械设计基础</strong>
+      <span>常州大学 · 硕士研究生入学考试</span>
+    </div>
+  </div>
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-view="overview">概览</button>
+    <button class="tab" data-view="bank">题库</button>
+    <button class="tab" data-view="quiz">选择题刷题</button>
+    <button class="tab" data-view="mistakes">错题本<span class="tab-badge" id="mistakeBadge" hidden>0</span></button>
+    <button class="tab" data-view="train">专项训练</button>
+    <button class="tab" data-view="stats">统计</button>
+    <button class="tab" data-view="subs">细分知识点</button>
+    <button class="tab" data-view="answers">参考答案</button>
+  </nav>
+  <div class="searchbox">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
+    <input id="globalSearch" type="search" placeholder="搜索题干、选项、题号…（按 / 聚焦）" autocomplete="off">
+    <kbd>/</kbd>
+  </div>
+</header>
+
+<main>
+  <!-- ============ 概览 ============ -->
+  <section class="view active" id="view-overview">
+    <div class="hero">
+      <div class="hero-copy">
+        <div class="eyebrow">2004 — 2026 · 历年真题整理</div>
+        <h1>把二十一套真题，<br>整理成一张可以检索的知识地图。</h1>
+        <p>覆盖 21 套试卷（2005、2016 年缺卷；2004/2006/2007 年为江苏工业学院 455 机械设计卷，2008 年为机械设计基础 A 卷；2023/2024/2025/2026 年为回忆版），逐题校对题号与题干，含图试题全部截取原卷插图，并按 15 个章节、64 个二级知识点统计频次。</p>
+        <div class="hero-actions">
+          <button class="btn primary" data-jump="bank">开始刷题库</button>
+          <button class="btn ghost" data-jump="quiz">刷选择题</button>
+          <button class="btn ghost" data-jump="train">进入专项训练</button>
+          <button class="btn ghost" data-jump="stats">看知识点分布</button>
+        </div>
+      </div>
+      <div class="hero-figure" id="heroFigure"></div>
+    </div>
+
+    <div class="stat-row" id="statRow"></div>
+
+    <div class="panel-grid">
+      <div class="panel">
+        <div class="panel-head">
+          <h2>各年份题目数量</h2>
+          <span class="hint">点击柱状条筛选该年</span>
+        </div>
+        <div class="chart" id="yearChart"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <h2>题型构成</h2>
+          <span class="hint">共 383 题</span>
+        </div>
+        <div class="chart" id="typeChart"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>高频细分知识点 Top 12</h2>
+        <span class="hint">按题目命中次数统计 · 点击筛选</span>
+      </div>
+      <div class="chart" id="topKpChart"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>年份速览</h2><span class="hint">点击进入该年试卷</span></div>
+      <div class="year-strip" id="yearStrip"></div>
+    </div>
+  </section>
+
+  <!-- ============ 题库 ============ -->
+  <section class="view" id="view-bank">
+    <div class="bank-head">
+      <div>
+        <h1 class="view-title">题库</h1>
+        <p class="view-sub" id="resultCount">正在加载…</p>
+      </div>
+      <div class="bank-tools">
+        <select id="sortSelect">
+          <option value="year-desc">年份：从新到旧</option>
+          <option value="year-asc">年份：从旧到新</option>
+          <option value="marks-desc">分值：从高到低</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="filterbar" id="filterbar">
+      <div class="filter-group">
+        <label>年份</label>
+        <div class="chips" id="yearChips"></div>
+      </div>
+      <div class="filter-group">
+        <label>题型</label>
+        <div class="chips" id="typeChips"></div>
+      </div>
+      <div class="filter-group">
+        <label>知识点</label>
+        <div class="chips scroll" id="kpChips"></div>
+      </div>
+      <div class="filter-group">
+        <label>细分</label>
+        <select id="subSelect" class="subselect"></select>
+      </div>
+      <button class="btn ghost small" id="resetFilters">清空筛选</button>
+    </div>
+
+    <div class="question-list" id="questionList"></div>
+    <div class="loadmore"><button class="btn ghost" id="loadMore">加载更多</button></div>
+  </section>
+
+  <!-- ============ 选择题刷题 ============ -->
+  <section class="view" id="view-quiz">
+    <h1 class="view-title">选择题刷题</h1>
+    <p class="view-sub">106 道选择题，点选项即时判分并给出详细解析；做错的题自动进入错题本，答题记录保存在本机。</p>
+
+    <div class="panel quiz-toolbar">
+      <div class="quiz-filter-row">
+        <span class="filter-label">年份</span>
+        <div class="chips" id="quizYears"></div>
+      </div>
+      <div class="quiz-filter-row">
+        <span class="filter-label">范围</span>
+        <div class="chips" id="quizScope"></div>
+        <div class="quiz-actions">
+          <button class="btn ghost small" id="quizShuffle">乱序练习</button>
+          <button class="btn ghost small" id="quizReset">清空记录</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel quiz-progress" id="quizProgress"></div>
+    <div id="quizCard"></div>
+    <div class="quiz-nav">
+      <button class="btn ghost" id="quizPrev">上一题</button>
+      <button class="btn ghost" id="quizAnswer">原卷答案</button>
+      <button class="btn primary" id="quizNext">下一题</button>
+    </div>
+  </section>
+
+  <!-- ============ 错题本 ============ -->
+  <section class="view" id="view-mistakes">
+    <div class="bank-head">
+      <div>
+        <h1 class="view-title">错题本</h1>
+        <p class="view-sub" id="mistakeCount">正在加载…</p>
+      </div>
+      <div class="bank-tools">
+        <button class="btn primary" id="mistakePractice">错题重练</button>
+        <button class="btn ghost" id="mistakeClear">清空错题本</button>
+      </div>
+    </div>
+
+    <div class="panel mistake-toolbar" id="mistakeToolbar">
+      <div class="quiz-filter-row">
+        <span class="filter-label">题型</span>
+        <div class="chips" id="mistakeTypes"></div>
+      </div>
+      <div class="quiz-filter-row">
+        <span class="filter-label">章节</span>
+        <div class="chips" id="mistakeChapters"></div>
+      </div>
+    </div>
+
+    <div class="question-list" id="mistakeList"></div>
+
+    <div class="panel mistake-empty" id="mistakeEmpty" hidden>
+      <h3>错题本还是空的</h3>
+      <p>在题库、专项训练或选择题刷题中，点击“加入错题本”即可收集；选择题答错会自动加入。</p>
+      <button class="btn ghost" data-jump="bank">去题库挑题</button>
+    </div>
+
+    <div class="train-session" id="mistakeSession" hidden>
+      <div class="train-bar">
+        <button class="btn ghost small" id="mistakeExit">← 退出重练</button>
+        <div class="train-progress"><i id="mistakeBar"></i></div>
+        <span class="train-pos" id="mistakePos"></span>
+      </div>
+      <div id="mistakeCard"></div>
+      <div class="train-controls">
+        <button class="btn ghost" id="mistakePrev">上一题</button>
+        <button class="btn ghost" id="mistakeRemove">移出错题本</button>
+        <button class="btn primary" id="mistakeNext">下一题</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 专项训练 ============ -->
+  <section class="view" id="view-train">
+    <h1 class="view-title">专项训练</h1>
+    <p class="view-sub">两种组卷方式：按章节/二级考点连续练，或按“大题题型”把各年份的自由度、轮系、螺栓、轴承、轴系改错、齿轮受力等同类大题整合成专项。</p>
+
+    <div class="panel train-picker">
+      <div class="train-mode" id="trainMode">
+        <button class="mode-btn on" data-mode="chapter">按章节专题</button>
+        <button class="mode-btn" data-mode="big">按大题题型</button>
+      </div>
+      <div id="chapterPicker">
+        <div class="panel-head"><h2>1. 选择章节</h2><span class="hint">点击切换专题</span></div>
+        <div class="chips" id="trainChapters"></div>
+        <div class="panel-head sub-head"><h2>2. 细分考点（可选）</h2><span class="hint" id="trainSubHint">不选则练整章</span></div>
+        <div class="chips" id="trainSubs"></div>
+      </div>
+      <div id="bigPicker" hidden>
+        <div class="panel-head"><h2>选择大题类型</h2><span class="hint">从各年份套卷中汇总同类大题</span></div>
+        <div class="chips" id="bigChips"></div>
+      </div>
+    </div>
+
+    <div class="panel train-intro" id="trainIntro"></div>
+    <div class="train-session" id="trainSession" hidden>
+      <div class="train-bar">
+        <button class="btn ghost small" id="trainExit">← 退出训练</button>
+        <div class="train-progress"><i id="trainBar"></i></div>
+        <span class="train-pos" id="trainPos"></span>
+      </div>
+      <div id="trainCard"></div>
+      <div class="train-controls">
+        <button class="btn ghost" id="trainPrev">上一题</button>
+        <button class="btn ghost" id="trainAnswer">参考答案</button>
+        <button class="btn primary" id="trainMaster">标记已掌握</button>
+        <button class="btn ghost" id="trainNext">下一题</button>
+      </div>
+      <p class="train-tip">提示：键盘 ← → 可切换题目；已掌握状态保存在本机浏览器。</p>
+    </div>
+  </section>
+
+  <!-- ============ 统计 ============ -->
+  <section class="view" id="view-stats">
+    <h1 class="view-title">统计</h1>
+    <p class="view-sub">15 个教材章节细分为 64 个二级知识点；同一题最多计入 3 个细分点。下方含章节总表、全部知识点明细、年份总表与多张统计图表。</p>
+    <div class="stat-row" id="kpStatRow"></div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>章节统计总表</h2><span class="hint">点击行筛选该章题目</span></div>
+      <div class="table-wrap"><table class="data-table" id="chapterTable"></table></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>全部知识点明细</h2><span class="hint" id="kpTableCount"></span></div>
+      <div class="table-tools">
+        <div class="chips" id="kpTableChapters"></div>
+        <input class="subselect" id="kpSearch" placeholder="搜索知识点编号或名称">
+        <select class="subselect" id="kpSort">
+          <option value="count-desc">题数从高到低</option>
+          <option value="count-asc">题数从低到高</option>
+          <option value="code">章节 / 编号</option>
+          <option value="name">知识点名称</option>
+        </select>
+      </div>
+      <div class="table-wrap tall"><table class="data-table" id="kpTable"></table></div>
+      <div class="chart-note">口径：题数＝包含该知识点的试题数；标注次数＝二级知识点标签数，同一题可计入多个标签；标注占比按全部标签数计算。</div>
+    </div>
+
+    <div class="panel-grid">
+      <div class="panel">
+        <div class="panel-head"><h2>高频知识点 Top 20</h2><span class="hint">点击条目筛选题目</span></div>
+        <div class="chart" id="topSubChart"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>知识点频次分布</h2><span class="hint">按命中次数分层</span></div>
+        <div class="chart" id="bucketChart"></div>
+      </div>
+    </div>
+
+    <div class="panel-grid">
+      <div class="panel">
+        <div class="panel-head"><h2>题型构成</h2><span class="hint">全部题目</span></div>
+        <div id="typeChartStats"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>章节 × 题型矩阵</h2><span class="hint">点击单元格筛选</span></div>
+        <div class="table-wrap" id="chapterTypeMatrix"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>年份统计总表</h2><span class="hint">点击行查看该年题目</span></div>
+      <div class="table-wrap"><table class="data-table" id="yearTable"></table></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>章节频次</h2><span class="hint">点击条目查看对应题目</span></div>
+      <div class="chart" id="kpBarChart"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>年份 × 章节 热力表</h2><span class="hint">颜色越深，命中题数越多</span></div>
+      <div class="heatwrap" id="heatmap"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>逐年章节走势</h2><span class="hint">选择章节查看</span></div>
+      <div class="chips" id="trendChips"></div>
+      <div class="chart" id="trendChart"></div>
+    </div>
+  </section>
+
+  <!-- ============ 细分知识点 ============ -->
+  <section class="view" id="view-subs">
+    <h1 class="view-title">细分知识点</h1>
+    <p class="view-sub">15 个教材章节细分为 64 个二级知识点，按章节展开查看各细分考点的命中次数；点击任一条目可跳转题库查看对应题目。</p>
+
+    <div class="panel">
+      <div class="panel-head"><h2>细分知识点分布</h2><span class="hint">按章节展开 · 点击条目筛选题目</span></div>
+      <div class="sub-groups" id="subGroups"></div>
+    </div>
+  </section>
+
+  <!-- ============ 答案 ============ -->
+  <section class="view" id="view-answers">
+    <h1 class="view-title">参考答案</h1>
+    <p class="view-sub">2009—2026 年答案扫描件，按年份整理；多页答案可左右翻页查看。点击题目卡片中的“整卷答案”可直接打开对应年份。</p>
+    <div class="answer-grid" id="answerGrid"></div>
+    <div class="notice">
+      <strong>说明</strong>：答案册覆盖 2009—2026 年（2004—2008 年原卷未附答案；2026 年答案原件仅含第 5—10 页）。2013—2015、2018—2022、2024 年采用老魏版答案，2017 年保留原完整单页版。
+      手写答案可能存在笔误，请以教材与课堂讲解为准。
+    </div>
+  </section>
+</main>
+
+<div class="lightbox" id="lightbox">
+  <div class="lightbox-inner">
+    <div class="lightbox-head"><span id="lightboxTitle"></span><button id="lightboxClose">关闭 ×</button></div>
+    <img id="lightboxImg" alt="">
+    <div class="lightbox-bar" id="lightboxBar" hidden>
+      <button class="btn ghost small" id="lightboxPrev">‹ 上一页</button>
+      <span id="lightboxPage"></span>
+      <button class="btn ghost small" id="lightboxNext">下一页 ›</button>
+    </div>
+  </div>
+</div>
+
+<footer class="footer">
+  <span>常州大学 855《机械设计基础》真题题库 · 内容整理自历年考试原卷扫描件</span>
+  <span>题目文字经 OCR 辅助录入并人工校对，如有个别字符出入，以原卷图片为准。</span>
+</footer>
+
+<script src="data/data.js"></script>
+<script src="data/quiz.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>
