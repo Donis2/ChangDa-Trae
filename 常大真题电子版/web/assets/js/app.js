@@ -452,7 +452,7 @@
     const subTags = q.subs.map(s => `<span class="kptag sub" data-sub="${s}" title="${CH.get(SUBS.get(s).chap)}">${s} ${SUBS.get(s).name}</span>`).join("");
     const ansVers = availableAnswerVersions(q.year);
     const ansBtn = ansVers.length
-      ? `<button class="anslink" data-ans="${q.year}">整卷答案${ansVers.length > 1 ? "（双版本）" : ""} →</button>`
+      ? ansVers.map(v => `<button class="anslink" data-ans="${q.year}" data-ver="${v}">${answerVerLabel(v)}答案</button>`).join("")
       : `<span class="anslink" style="color:#a9a193;cursor:default">整卷扫描答案未附</span>`;
     const ansFigs = (q.answerFigs || []).map(f =>
       `<figure class="qfig" data-src="assets/figs/${f}" data-title="${q.year} 年第 ${q.num} 题 答案图">
@@ -491,7 +491,12 @@
     $$(".kptag[data-sub]", root).forEach(el => el.onclick = () =>
       goBank({ sub: el.dataset.sub }));
     $$(".anslink[data-ans]", root).forEach(el => el.onclick = () => {
-      openAnswerLightbox(el.dataset.ans, 0, state.answerVersion);
+      const ver = el.dataset.ver || state.answerVersion;
+      if (availableAnswerVersions(el.dataset.ans).length) {
+        state.answerVersion = ver;
+        saveAnswerVersion();
+        openAnswerLightbox(el.dataset.ans, 0, ver);
+      }
     });
     $$(".qanswer-toggle", root).forEach(el => el.onclick = () => {
       const body = el.nextElementSibling;
@@ -1071,7 +1076,12 @@
     $$(".qfig", root).forEach(el => el.onclick = () => openLightbox(el.dataset.src, el.dataset.title));
     $$(".anslink[data-ans]", root).forEach(el => el.onclick = () => {
       const y = el.dataset.ans;
-      if (availableAnswerVersions(y).length) openAnswerLightbox(y, 0, state.answerVersion);
+      const ver = el.dataset.ver || state.answerVersion;
+      if (availableAnswerVersions(y).length) {
+        state.answerVersion = ver;
+        saveAnswerVersion();
+        openAnswerLightbox(y, 0, ver);
+      }
     });
     $$(".kptag[data-kp]", root).forEach(el => el.onclick = () => goBank({ kp: el.dataset.kp }));
     $$(".kptag[data-sub]", root).forEach(el => el.onclick = () => goBank({ sub: el.dataset.sub }));
@@ -1470,7 +1480,7 @@
       v => { state.answerVersion = v; saveAnswerVersion(); renderAnswerVersionChips(); renderAnswers(); },
       v => answerVerLabel(v));
     const info = ANSWER_VERSIONS[state.answerVersion] || {};
-    $("#answerVersionHint").textContent = info.desc || "";
+    $("#answerVersionHint").textContent = `当前：${answerVerLabel(state.answerVersion)}${info.desc ? " · " + info.desc : ""}`;
   }
 
   function renderAnswers() {
@@ -1497,9 +1507,25 @@
     catch (e) { location.hash = h; }
   }
 
+  let boxZoomed = false;
+  function setZoom(on) {
+    boxZoomed = on;
+    $("#lightboxImg").classList.toggle("zoomed", on);
+    $("#lightboxZoom").textContent = on ? "还原" : "放大";
+    if (!on) {
+      $("#lightboxImgWrap").scrollTop = 0;
+      $("#lightboxImgWrap").scrollLeft = 0;
+    }
+  }
+  function toggleZoom() {
+    if (!$("#lightboxImg").src) return;
+    setZoom(!boxZoomed);
+  }
+
   function showBox(b) {
     const srcs = b.srcs || [b.src];
     b.i = Math.min(Math.max(b.i || 0, 0), srcs.length - 1);
+    setZoom(false);
     $("#lightboxImg").src = srcs[b.i];
     $("#lightboxTitle").textContent = b.title || "";
     const bar = $("#lightboxBar");
@@ -1509,18 +1535,32 @@
     $("#lightboxNext").disabled = b.i >= srcs.length - 1;
 
     const vb = $("#lightboxVersions");
+    const note = $("#lightboxVersionNote");
     if (b.year) {
-      const vs = availableAnswerVersions(b.year);
-      vb.hidden = vs.length <= 1;
-      vb.innerHTML = vs.map(v => {
+      const all = Object.keys(ANSWER_VERSIONS).filter(v => v !== "default");
+      vb.hidden = all.length <= 1;
+      vb.innerHTML = all.map(v => {
         const pages = answerPagesOf(b.year, v);
         const on = v === b.version;
-        return `<button class="ver-btn${on ? " on" : ""}" data-ver="${v}">${answerVerLabel(v)}<span>${pages.length} 页</span></button>`;
+        const disabled = pages.length ? "" : " disabled";
+        return `<button class="ver-btn${on ? " on" : ""}" data-ver="${v}"${disabled}>${answerVerLabel(v)}<span>${pages.length ? pages.length + " 页" : "无"}</span></button>`;
       }).join("");
       $$(".ver-btn", vb).forEach(el => el.onclick = () => switchAnswerVersion(el.dataset.ver));
+      if (b.year >= 2009 && b.year <= 2012) {
+        note.hidden = false;
+        note.textContent = "2009—2012 年两版内容相同：考研群资料版沿用老魏版答案。";
+      } else if (!availableAnswerVersions(b.year).includes("laowei")) {
+        note.hidden = false;
+        note.textContent = "该年份仅有考研群资料版；老魏版未收录。";
+      } else {
+        note.hidden = true;
+        note.textContent = "";
+      }
     } else {
       vb.hidden = true;
       vb.innerHTML = "";
+      note.hidden = true;
+      note.textContent = "";
     }
     $("#lightbox").classList.add("open");
   }
@@ -1569,6 +1609,8 @@
   }
 
   $("#lightboxClose").onclick = closeLightbox;
+  $("#lightboxZoom").onclick = toggleZoom;
+  $("#lightboxImg").onclick = toggleZoom;
   $("#lightboxPrev").onclick = () => lightboxStep(-1);
   $("#lightboxNext").onclick = () => lightboxStep(1);
   $("#lightbox").onclick = e => { if (e.target.id === "lightbox") closeLightbox(); };

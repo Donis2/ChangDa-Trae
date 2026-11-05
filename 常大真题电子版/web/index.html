@@ -367,7 +367,7 @@
   <!-- ============ 答案 ============ -->
   <section class="view" id="view-answers">
     <h1 class="view-title">参考答案</h1>
-    <p class="view-sub">同一道整卷答案提供两个版本，可在下方或打开答案灯箱后随时切换；多页答案可左右翻页查看。</p>
+    <p class="view-sub">同一道整卷答案提供两个版本，可在下方或打开答案灯箱后随时切换；点击缩略图打开大图，在灯箱内点击图片或“放大”按钮可 1:1 查看。</p>
     <div class="panel answer-version-bar">
       <span class="filter-label">答案版本</span>
       <div class="chips" id="answerVersionChips"></div>
@@ -383,9 +383,18 @@
 
 <div class="lightbox" id="lightbox">
   <div class="lightbox-inner">
-    <div class="lightbox-head"><span id="lightboxTitle"></span><button id="lightboxClose">关闭 ×</button></div>
+    <div class="lightbox-head">
+      <span id="lightboxTitle"></span>
+      <span class="lightbox-tools">
+        <button id="lightboxZoom" type="button">放大</button>
+        <button id="lightboxClose" type="button">关闭 ×</button>
+      </span>
+    </div>
     <div class="lightbox-versions" id="lightboxVersions" hidden></div>
-    <img id="lightboxImg" alt="">
+    <div class="lightbox-version-note" id="lightboxVersionNote" hidden></div>
+    <div class="lightbox-img-wrap" id="lightboxImgWrap">
+      <img id="lightboxImg" alt="点击放大或还原">
+    </div>
     <div class="lightbox-bar" id="lightboxBar" hidden>
       <button class="btn ghost small" id="lightboxPrev">‹ 上一页</button>
       <span id="lightboxPage"></span>
