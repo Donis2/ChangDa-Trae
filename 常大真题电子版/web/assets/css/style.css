@@ -535,3 +535,47 @@ main { max-width: 1180px; margin: 0 auto; padding: 34px 30px 70px; }
 .mistake-empty p { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
 #mistakeSession { margin-top: 0; }
 [hidden] { display: none !important; }
+
+/* ---------- 扩展题 / 双版本答案 ---------- */
+.tabs { overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+
+.ext-filterbar { margin-bottom: 14px; }
+#extSourceChips { max-height: 140px; }
+.ext-badge {
+  display: inline-flex; align-items: center; padding: 2px 8px;
+  border-radius: 999px; background: rgba(178, 139, 62, .12);
+  color: #8a6d3b; font-size: 11px; font-weight: 600;
+}
+.ext-exam {
+  border: 1px solid rgba(184, 76, 51, .35); background: rgba(184, 76, 51, .07);
+  color: var(--accent); border-radius: 999px; padding: 3px 9px;
+  font-size: 11px; line-height: 1.5; max-width: 100%; text-align: left;
+}
+.ext-exam:hover { background: rgba(184, 76, 51, .14); }
+.ext-exam b { margin-right: 4px; }
+.ext-source { font-size: 11.5px; color: var(--muted); }
+
+.answer-version-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 12px 18px; margin-bottom: 14px;
+}
+.answer-version-bar .hint { margin-left: auto; }
+.lightbox-versions {
+  display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
+  padding: 8px 12px; background: rgba(255, 255, 255, .06);
+}
+.ver-btn {
+  border: 1px solid rgba(255, 255, 255, .22); background: transparent;
+  color: #e9e2d5; border-radius: 999px; padding: 4px 11px; font-size: 12px;
+}
+.ver-btn span { margin-left: 6px; opacity: .65; font-size: 10.5px; }
+.ver-btn.on { background: rgba(255, 255, 255, .18); border-color: rgba(255, 255, 255, .5); font-weight: 600; }
+.katex-display { overflow-x: auto; overflow-y: hidden; padding: 2px 0; }
+
+@media (max-width: 720px) {
+  .answer-version-bar .hint { margin-left: 0; width: 100%; }
+  .lightbox-versions { padding: 6px; }
+}
+
+#filterbar .filter-group:first-child label { flex: 0 0 84px; white-space: nowrap; }

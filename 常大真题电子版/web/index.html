@@ -6,6 +6,7 @@
 <title>常州大学 855 机械设计基础 · 历年真题题库</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/katex/katex.min.css">
 </head>
 <body>
 <div class="grain"></div>
@@ -21,6 +22,7 @@
   <nav class="tabs" id="tabs">
     <button class="tab active" data-view="overview">概览</button>
     <button class="tab" data-view="bank">题库</button>
+    <button class="tab" data-view="ext">扩展题</button>
     <button class="tab" data-view="quiz">选择题刷题</button>
     <button class="tab" data-view="mistakes">错题本<span class="tab-badge" id="mistakeBadge" hidden>0</span></button>
     <button class="tab" data-view="train">专项训练</button>
@@ -42,12 +44,12 @@
       <div class="hero-copy">
         <div class="eyebrow">2004 — 2026 · 历年真题整理</div>
         <h1>把二十一套真题，<br>整理成一张可以检索的知识地图。</h1>
-        <p>覆盖 21 套试卷（2005、2016 年缺卷；2004/2006/2007 年为江苏工业学院 455 机械设计卷，2008 年为机械设计基础 A 卷；2023/2024/2025/2026 年为回忆版），逐题校对题号与题干，含图试题全部截取原卷插图，并按 15 个章节、64 个二级知识点统计频次。</p>
+        <p>覆盖 21 套试卷（2005、2016 年缺卷；2004/2006/2007 年为江苏工业学院 455 机械设计卷，2008 年为机械设计基础 A 卷；2023/2024/2025/2026 年为回忆版），逐题校对题号与题干，含图试题全部截取原卷插图，并按 15 个章节、64 个二级知识点统计频次。另收录青蛙题库与简答专项资料中的扩展题，真题整卷答案提供老魏版、考研群资料版双版本。</p>
         <div class="hero-actions">
           <button class="btn primary" data-jump="bank">开始刷题库</button>
           <button class="btn ghost" data-jump="quiz">刷选择题</button>
           <button class="btn ghost" data-jump="train">进入专项训练</button>
-          <button class="btn ghost" data-jump="stats">看知识点分布</button>
+          <button class="btn ghost" data-jump="ext">看扩展题</button>
         </div>
       </div>
       <div class="hero-figure" id="heroFigure"></div>
@@ -66,7 +68,7 @@
       <div class="panel">
         <div class="panel-head">
           <h2>题型构成</h2>
-          <span class="hint">共 383 题</span>
+          <span class="hint" id="typeChartHint"></span>
         </div>
         <div class="chart" id="typeChart"></div>
       </div>
@@ -95,8 +97,8 @@
       </div>
       <div class="bank-tools">
         <select id="sortSelect">
-          <option value="year-desc">年份：从新到旧</option>
-          <option value="year-asc">年份：从旧到新</option>
+          <option value="year-desc">年份：从新到旧（同年按原卷顺序）</option>
+          <option value="year-asc">年份：从旧到新（同年按原卷顺序）</option>
           <option value="marks-desc">分值：从高到低</option>
         </select>
       </div>
@@ -104,7 +106,7 @@
 
     <div class="filterbar" id="filterbar">
       <div class="filter-group">
-        <label>年份</label>
+        <label>年份（可多选）</label>
         <div class="chips" id="yearChips"></div>
       </div>
       <div class="filter-group">
@@ -124,6 +126,46 @@
 
     <div class="question-list" id="questionList"></div>
     <div class="loadmore"><button class="btn ghost" id="loadMore">加载更多</button></div>
+  </section>
+
+  <!-- ============ 扩展题 ============ -->
+  <section class="view" id="view-ext">
+    <div class="bank-head">
+      <div>
+        <h1 class="view-title">扩展题</h1>
+        <p class="view-sub" id="extSub">从青蛙弟弟选择题题库与简答专项资料中整理出的非真题题目，独立于 386 条真题；其中考过的题会标注全部年份与原卷题号。</p>
+      </div>
+    </div>
+
+    <div class="stat-row" id="extStatRow"></div>
+
+    <div class="panel filterbar ext-filterbar">
+      <div class="filter-group">
+        <label>来源</label>
+        <div class="chips scroll" id="extSourceChips"></div>
+      </div>
+      <div class="filter-group">
+        <label>题型</label>
+        <div class="chips" id="extTypeChips"></div>
+      </div>
+      <div class="filter-group">
+        <label>是否考过</label>
+        <div class="chips" id="extExamChips"></div>
+      </div>
+      <div class="filter-group">
+        <label>章节</label>
+        <div class="chips scroll" id="extChapterChips"></div>
+      </div>
+      <div class="filter-group">
+        <label>搜索</label>
+        <input class="subselect" id="extSearch" placeholder="搜索题干、来源或年份">
+      </div>
+      <button class="btn ghost small" id="resetExtFilters">清空筛选</button>
+    </div>
+
+    <p class="view-sub" id="extCount"></p>
+    <div class="question-list" id="extList"></div>
+    <div class="loadmore"><button class="btn ghost" id="extLoadMore">加载更多</button></div>
   </section>
 
   <!-- ============ 选择题刷题 ============ -->
@@ -325,10 +367,15 @@
   <!-- ============ 答案 ============ -->
   <section class="view" id="view-answers">
     <h1 class="view-title">参考答案</h1>
-    <p class="view-sub">2009—2026 年答案扫描件，按年份整理；多页答案可左右翻页查看。点击题目卡片中的“整卷答案”可直接打开对应年份。</p>
+    <p class="view-sub">同一道整卷答案提供两个版本，可在下方或打开答案灯箱后随时切换；多页答案可左右翻页查看。</p>
+    <div class="panel answer-version-bar">
+      <span class="filter-label">答案版本</span>
+      <div class="chips" id="answerVersionChips"></div>
+      <span class="hint" id="answerVersionHint"></span>
+    </div>
     <div class="answer-grid" id="answerGrid"></div>
     <div class="notice">
-      <strong>说明</strong>：答案册覆盖 2009—2026 年（2004—2008 年原卷未附答案；2026 年答案原件仅含第 5—10 页）。2013—2015、2018—2022、2024 年采用老魏版答案，2017 年保留原完整单页版。
+      <strong>说明</strong>：老魏版覆盖 2009—2024 年（2017 年标题页缺失）；考研群资料版覆盖 2009—2026 年，其中 2009—2012 年沿用老魏版。2004—2008 年原卷未附答案；2026 年答案原件仅含第 5—10 页。
       手写答案可能存在笔误，请以教材与课堂讲解为准。
     </div>
   </section>
@@ -337,6 +384,7 @@
 <div class="lightbox" id="lightbox">
   <div class="lightbox-inner">
     <div class="lightbox-head"><span id="lightboxTitle"></span><button id="lightboxClose">关闭 ×</button></div>
+    <div class="lightbox-versions" id="lightboxVersions" hidden></div>
     <img id="lightboxImg" alt="">
     <div class="lightbox-bar" id="lightboxBar" hidden>
       <button class="btn ghost small" id="lightboxPrev">‹ 上一页</button>
@@ -353,6 +401,9 @@
 
 <script src="data/data.js"></script>
 <script src="data/quiz.js"></script>
+<script src="data/ext.js"></script>
+<script src="assets/katex/katex.min.js"></script>
+<script src="assets/katex/auto-render.min.js"></script>
 <script src="assets/js/app.js"></script>
 </body>
 </html>

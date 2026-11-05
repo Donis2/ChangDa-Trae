@@ -3,6 +3,8 @@
   const D = window.DATA;
   const QS = D.questions;
   const META = D.meta;
+  const EXT = window.EXT || { meta: {}, questions: [] };
+  const EXT_QS = EXT.questions || [];
   const YEARS = Object.keys(META.years).map(Number).sort((a, b) => a - b);
   const CH = new Map(META.chapters.map(c => [c.code, c.name]));
   const SUBS = new Map(META.subs.map(s => [s.code, s]));
@@ -83,15 +85,24 @@
     quiz: { year: "all", scope: "all", order: [], i: 0, picks: [], shuffled: false },
     mistakes: { type: "all", chapter: "all", active: false, list: [], i: 0 },
     kpTable: { chapter: "all", sort: "count-desc", q: "" },
+    ext: { source: "all", type: "all", exam: "all", chapter: "all", q: "", page: 1, pageSize: 24 },
+    answerVersion: "kaoyanqun",
   };
 
   const MASTER_KEY = "cx855_mastered_v1";
   const mastered = new Set();
-  const VIEWS = ["overview", "bank", "quiz", "mistakes", "train", "stats", "subs", "answers"];
+  const VIEWS = ["overview", "bank", "ext", "quiz", "mistakes", "train", "stats", "subs", "answers"];
   let lastHashApplied = "";
   let lastBox = null;
 
   const QUIZ = window.QUIZ || {};
+
+  const ANSWER_VERSIONS = META.answerVersions || {};
+  const ANSWER_VER_KEY = "cx855_answer_version_v1";
+  try {
+    const saved = localStorage.getItem(ANSWER_VER_KEY);
+    if (saved && ANSWER_VERSIONS[saved]) state.answerVersion = saved;
+  } catch (e) { /* ignore */ }
   try {
     (JSON.parse(localStorage.getItem(MASTER_KEY) || "[]") || []).forEach(id => mastered.add(id));
   } catch (e) { /* ignore */ }
@@ -175,6 +186,52 @@
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => Array.from(root.querySelectorAll(s));
   const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+
+  function renderMath(root) {
+    if (!window.renderMathInElement || !root) return;
+    try {
+      window.renderMathInElement(root, {
+        delimiters: [
+          { left: "$$", right: "$$", display: true },
+          { left: "\\[", right: "\\]", display: true },
+          { left: "$", right: "$", display: false },
+          { left: "\\(", right: "\\)", display: false },
+        ],
+        throwOnError: false,
+        ignoredTags: ["script", "style", "textarea", "pre", "code"],
+      });
+    } catch (e) { /* ignore */ }
+  }
+
+  const CN_DIGITS = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
+  function cnOrdinal(section) {
+    const m = String(section || "").match(/^([一二三四五六七八九十]+)/);
+    if (!m) return 99;
+    const t = m[1];
+    if (t.length === 1) return CN_DIGITS[t] || 99;
+    if (t[0] === "十") return 10 + (CN_DIGITS[t[1]] || 0);
+    if (t[1] === "十") return (CN_DIGITS[t[0]] || 0) * 10 + (CN_DIGITS[t[2]] || 0);
+    return CN_DIGITS[t[0]] || 99;
+  }
+  // 原卷顺序：先按卷面大题（一、二、三……），再按题号
+  function paperOrder(a, b) {
+    const sa = cnOrdinal(a.section), sb = cnOrdinal(b.section);
+    if (sa !== sb) return sa - sb;
+    const na = parseInt(a.num, 10) || 0, nb = parseInt(b.num, 10) || 0;
+    return na - nb || a._order - b._order;
+  }
+
+  function answerVerLabel(v) { return (ANSWER_VERSIONS[v] && ANSWER_VERSIONS[v].label) || v; }
+  function answerPagesOf(year, ver) {
+    const y = META.years[String(year)];
+    if (!y || !y.answers) return [];
+    if (Array.isArray(y.answers)) return ver === "laowei" || ver === "kaoyanqun" ? y.answers : [];
+    return (y.answers[ver] || []).slice();
+  }
+  function availableAnswerVersions(year) {
+    return Object.keys(ANSWER_VERSIONS).filter(v => v !== "default" && answerPagesOf(year, v).length);
+  }
+  function answerSrc(year, ver, file) { return `assets/answers/${ver}/${file}`; }
 
   QS.forEach((q, i) => {
     q._s = (q.text + " " + q.options.join(" ")).toLowerCase();
@@ -269,6 +326,7 @@
 
   function renderTypeChart() {
     const total = QS.length;
+    $("#typeChartHint").textContent = `共 ${total} 题`;
     const items = TYPES.map(t => [t, typeCount.get(t) || 0]).filter(i => i[1]);
     let a = -Math.PI / 2;
     const paths = items.map(([t, v], i) => {
@@ -328,8 +386,15 @@
   }
 
   function renderFilters() {
-    renderChips($("#yearChips"), YEARS.map(y => [y, yearCount.get(String(y)) || 0]), state.years,
-      v => { toggle(state.years, v); state.page = 1; renderFilters(); renderList(); renderResultCount(); });
+    renderChips($("#yearChips"),
+      [["全部", QS.length]].concat(YEARS.map(y => [y, yearCount.get(String(y)) || 0])),
+      new Set(state.years.size ? Array.from(state.years) : ["全部"]),
+      v => {
+        if (v === "全部") state.years.clear();
+        else toggle(state.years, v);
+        state.page = 1; renderFilters(); renderList(); renderResultCount();
+      },
+      v => v === "全部" ? "全部年份" : `${v} 年`);
     renderChips($("#typeChips"), TYPES.map(t => [t, typeCount.get(t) || 0]), state.types,
       v => { toggle(state.types, v); state.page = 1; renderFilters(); renderList(); renderResultCount(); });
     renderChips($("#kpChips"), Array.from(kpCount.entries()).sort((a, b) => b[1] - a[1]).map(([k, v]) => [k, v]), state.kps,
@@ -359,16 +424,17 @@
       if (q && !item._s.includes(q) && !item.id.includes(q)) return false;
       return true;
     });
-    if (state.sort === "year-desc") arr.sort((a, b) => b.year - a.year || a._order - b._order);
-    else if (state.sort === "year-asc") arr.sort((a, b) => a.year - b.year || a._order - b._order);
-    else arr.sort((a, b) => (b.marks || 0) - (a.marks || 0) || b.year - a.year || a._order - b._order);
+    if (state.sort === "year-desc") arr.sort((a, b) => b.year - a.year || paperOrder(a, b));
+    else if (state.sort === "year-asc") arr.sort((a, b) => a.year - b.year || paperOrder(a, b));
+    else arr.sort((a, b) => (b.marks || 0) - (a.marks || 0) || b.year - a.year || paperOrder(a, b));
     return arr;
   }
 
   function renderResultCount() {
     const n = filtered().length;
     let extra = "";
-    if (state.subs.size) extra = " · " + Array.from(state.subs).map(s => SUBS.get(s).name).join("、");
+    if (state.years.size) extra += " · 年份 " + Array.from(state.years).map(Number).sort((a, b) => a - b).join("、");
+    if (state.subs.size) extra += " · " + Array.from(state.subs).map(s => SUBS.get(s).name).join("、");
     if (state.q) extra += ` · 关键词“${state.q}”`;
     $("#resultCount").textContent = `共 ${n} 题${extra}`;
   }
@@ -384,10 +450,10 @@
       </figure>`).join("")).join("");
     const chapTags = q.kp.map(k => `<span class="kptag" data-kp="${k}">${CH.get(k)}</span>`).join("");
     const subTags = q.subs.map(s => `<span class="kptag sub" data-sub="${s}" title="${CH.get(SUBS.get(s).chap)}">${s} ${SUBS.get(s).name}</span>`).join("");
-    const ans = META.years[String(q.year)].answers;
-    const ansBtn = ans.length
-      ? `<button class="anslink" data-ans="${q.year}">整卷答案${ans.length > 1 ? `（${ans.length} 页）` : ""} →</button>`
-      : `<span class="anslink" style="color:#a9a193;cursor:default">原件未附答案</span>`;
+    const ansVers = availableAnswerVersions(q.year);
+    const ansBtn = ansVers.length
+      ? `<button class="anslink" data-ans="${q.year}">整卷答案${ansVers.length > 1 ? "（双版本）" : ""} →</button>`
+      : `<span class="anslink" style="color:#a9a193;cursor:default">整卷扫描答案未附</span>`;
     const ansFigs = (q.answerFigs || []).map(f =>
       `<figure class="qfig" data-src="assets/figs/${f}" data-title="${q.year} 年第 ${q.num} 题 答案图">
         <img src="assets/figs/${f}" loading="lazy" alt="${q.year} 年第 ${q.num} 题答案图">
@@ -425,7 +491,7 @@
     $$(".kptag[data-sub]", root).forEach(el => el.onclick = () =>
       goBank({ sub: el.dataset.sub }));
     $$(".anslink[data-ans]", root).forEach(el => el.onclick = () => {
-      openAnswerLightbox(el.dataset.ans);
+      openAnswerLightbox(el.dataset.ans, 0, state.answerVersion);
     });
     $$(".qanswer-toggle", root).forEach(el => el.onclick = () => {
       const body = el.nextElementSibling;
@@ -446,6 +512,7 @@
     more.style.display = arr.length > slice.length ? "inline-block" : "none";
     more.textContent = `加载更多（还有 ${arr.length - slice.length} 题）`;
     bindCardActions($("#questionList"));
+    renderMath($("#questionList"));
   }
 
   /* ---------------- stats view ---------------- */
@@ -738,6 +805,144 @@
     </svg>`;
   }
 
+  /* ---------------- 扩展题 ---------------- */
+  function extSourceLabels() {
+    const labels = new Set();
+    EXT_QS.forEach(e => (e.sources || []).forEach(s => labels.add(s.label)));
+    return Array.from(labels);
+  }
+
+  function extRefText(r) {
+    const sec = String(r.section || "").replace(/第\s*\d+\s*题\s*$/, "").trim();
+    return `${r.year} ${sec}第${r.num}题`;
+  }
+
+  function extFiltered() {
+    const s = state.ext;
+    const needle = s.q.trim().toLowerCase();
+    return EXT_QS.filter(e => {
+      if (s.source !== "all" && !(e.sources || []).some(x => x.label === s.source)) return false;
+      if (s.type !== "all" && e.type !== s.type) return false;
+      if (s.exam === "exam" && !e.isExam) return false;
+      if (s.exam === "none" && e.isExam) return false;
+      if (s.chapter !== "all" && !(e.kp || []).includes(s.chapter)) return false;
+      if (needle) {
+        const hay = (e.text + " " + (e.answer || "") + " " + (e.explanation || "") + " " +
+          (e.sources || []).map(x => x.label).join(" ") + " " +
+          (e.examRefs || []).map(extRefText).join(" ")).toLowerCase();
+        if (!hay.includes(needle)) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderExtStats() {
+    const exam = EXT_QS.filter(e => e.isExam).length;
+    const srcs = extSourceLabels().length;
+    const types = countBy(EXT_QS, e => [e.type]);
+    const cards = [
+      { num: EXT_QS.length, label: "道扩展题 · 独立于真题题库" },
+      { num: exam, label: "道标注为历年真题" },
+      { num: srcs, label: "个资料来源" },
+      { num: QS.length, label: "道真题 · 另见题库" },
+    ];
+    $("#extStatRow").innerHTML = cards.map(c =>
+      `<div class="stat-card"><div class="num">${c.num}</div><div class="label">${c.label}</div></div>`).join("");
+    $("#extSub").textContent = `共 ${EXT_QS.length} 道扩展题（选择 ${types.get("选择") || 0}、简答 ${types.get("简答") || 0}），` +
+      `独立于 ${QS.length} 条真题；其中 ${exam} 道在历年真题中出现过，卡片会标注全部年份与原卷题号。`;
+  }
+
+  function renderExtFilters() {
+    const s = state.ext;
+    const sources = extSourceLabels().map(label => {
+      const n = EXT_QS.filter(e => (e.sources || []).some(x => x.label === label)).length;
+      return [label, n];
+    }).sort((a, b) => b[1] - a[1]);
+    renderChips($("#extSourceChips"), [["全部", EXT_QS.length]].concat(sources),
+      new Set([s.source === "all" ? "全部" : s.source]),
+      v => { s.source = v === "全部" ? "all" : v; s.page = 1; renderExtFilters(); renderExtList(); },
+      v => v);
+
+    const typeItems = ["选择", "简答"].filter(t => EXT_QS.some(e => e.type === t))
+      .map(t => [t, EXT_QS.filter(e => e.type === t).length]);
+    renderChips($("#extTypeChips"), [["全部", EXT_QS.length]].concat(typeItems),
+      new Set([s.type === "all" ? "全部" : s.type]),
+      v => { s.type = v === "全部" ? "all" : v; s.page = 1; renderExtFilters(); renderExtList(); },
+      v => v);
+
+    renderChips($("#extExamChips"),
+      [["全部", EXT_QS.length], ["考过的真题", EXT_QS.filter(e => e.isExam).length], ["未考过", EXT_QS.filter(e => !e.isExam).length]],
+      new Set([s.exam === "all" ? "全部" : s.exam === "exam" ? "考过的真题" : "未考过"]),
+      v => { s.exam = v === "全部" ? "all" : v === "考过的真题" ? "exam" : "none"; s.page = 1; renderExtFilters(); renderExtList(); },
+      v => v);
+
+    const chapCount = countBy(EXT_QS, e => e.kp || []);
+    renderChips($("#extChapterChips"), [["全部", EXT_QS.length]].concat(
+      META.chapters.filter(c => chapCount.get(c.code)).map(c => [c.code, chapCount.get(c.code)])
+    ), new Set([s.chapter === "all" ? "全部" : s.chapter]),
+      v => { s.chapter = v === "全部" ? "all" : v; s.page = 1; renderExtFilters(); renderExtList(); },
+      v => v === "全部" ? "全部章节" : `${v} ${CH.get(v)}`);
+  }
+
+  function extCard(e) {
+    const opts = e.options.length
+      ? `<div class="options">${e.options.map((o, i) => `<div class="option"><span class="okey">${"ABCD"[i] || ""}</span><span>${esc(o)}</span></div>`).join("")}</div>`
+      : "";
+    const srcLabel = (e.sources || []).map(s => `${s.label} 第${s.no}题`).join("；");
+    const refs = (e.examRefs || []).slice().sort((a, b) => a.year - b.year || String(a.num).localeCompare(String(b.num)));
+    const refHtml = refs.length
+      ? `<button class="ext-exam" type="button" data-ext-year="${refs[0].year}" title="点击查看该年份真题"><b>真题</b>${refs.map(extRefText).join("、")}</button>`
+      : "";
+    return `<article class="qcard ext-card" id="ext-${esc(e.id)}">
+      <div class="qhead">
+        <span class="qid">${esc(e.id)}</span>
+        <span class="qtype">${esc(e.type)}题</span>
+        <span class="ext-badge">扩展</span>
+        ${e.isExam ? refHtml : ""}
+      </div>
+      <div class="qtext">${esc(e.text)}</div>
+      ${opts}
+      <div class="qfoot">
+        <span class="ext-source">来源：${esc(srcLabel)}</span>
+        <span class="kptag">${esc(CH.get((e.kp || [])[0]) || "")}</span>
+      </div>
+      <div class="qanswer">
+        <button class="qanswer-toggle" type="button" aria-expanded="false" data-ext-answer>查看答案 <span class="chev">▾</span></button>
+        <div class="qanswer-body" hidden>
+          ${e.answer ? `<div class="ans-sec"><div class="ans-label">答案</div><div class="ans-text">${esc(e.answer).replace(/\n/g, "<br>")}</div></div>` : `<div class="ans-sec"><div class="ans-label">答案</div><div class="ans-text">该资料未提供答案。</div></div>`}
+          ${e.explanation ? `<div class="ans-sec"><div class="ans-label">解析</div><div class="ans-text">${esc(e.explanation).replace(/\n/g, "<br>")}</div></div>` : ""}
+        </div>
+      </div>
+    </article>`;
+  }
+
+  function renderExtList() {
+    const arr = extFiltered();
+    const slice = arr.slice(0, state.ext.page * state.ext.pageSize);
+    $("#extList").innerHTML = slice.map(extCard).join("") ||
+      `<div class="panel" style="text-align:center;color:#7c8a92">没有匹配的扩展题，试试清空筛选条件。</div>`;
+    const more = $("#extLoadMore");
+    more.style.display = arr.length > slice.length ? "inline-block" : "none";
+    more.textContent = `加载更多（还有 ${arr.length - slice.length} 题）`;
+    $("#extCount").textContent = `共 ${arr.length} 道扩展题 · 已显示 ${slice.length} 道`;
+    $$("[data-ext-answer]", $("#extList")).forEach(el => el.onclick = () => {
+      const body = el.nextElementSibling;
+      const open = body.hidden;
+      body.hidden = !open;
+      el.setAttribute("aria-expanded", String(open));
+      el.classList.toggle("open", open);
+      if (open) renderMath(body);
+    });
+    $$("[data-ext-year]", $("#extList")).forEach(el => el.onclick = () => goBank({ year: el.dataset.extYear }));
+    renderMath($("#extList"));
+  }
+
+  function renderExt() {
+    renderExtStats();
+    renderExtFilters();
+    renderExtList();
+  }
+
   /* ---------------- 专项训练 ---------------- */
   function trainList() {
     const t = state.train;
@@ -850,23 +1055,23 @@
     btn.textContent = isDone ? "取消已掌握" : "标记已掌握";
     btn.classList.toggle("primary", !isDone);
     btn.classList.toggle("ghost", isDone);
-    const ans = META.years[String(q.year)].answers;
-    $("#trainAnswer").disabled = !ans.length;
-    $("#trainAnswer").style.opacity = ans.length ? 1 : .45;
-    $("#trainAnswer").textContent = ans.length
-      ? `参考答案${ans.length > 1 ? `（${ans.length} 页）` : ""}`
-      : "原件未附答案";
+    const ansVers = availableAnswerVersions(q.year);
+    $("#trainAnswer").disabled = !ansVers.length;
+    $("#trainAnswer").style.opacity = ansVers.length ? 1 : .45;
+    $("#trainAnswer").textContent = ansVers.length
+      ? `参考答案${ansVers.length > 1 ? "（双版本）" : ""}`
+      : "整卷扫描答案未附";
     $("#trainPrev").disabled = t.i === 0;
     $("#trainNext").textContent = t.i === t.list.length - 1 ? "完成训练" : "下一题";
     bindCardEvents($("#trainCard"));
+    renderMath($("#trainCard"));
   }
 
   function bindCardEvents(root) {
     $$(".qfig", root).forEach(el => el.onclick = () => openLightbox(el.dataset.src, el.dataset.title));
     $$(".anslink[data-ans]", root).forEach(el => el.onclick = () => {
       const y = el.dataset.ans;
-      const imgs = META.years[y].answers;
-      if (imgs.length) openAnswerLightbox(y);
+      if (availableAnswerVersions(y).length) openAnswerLightbox(y, 0, state.answerVersion);
     });
     $$(".kptag[data-kp]", root).forEach(el => el.onclick = () => goBank({ kp: el.dataset.kp }));
     $$(".kptag[data-sub]", root).forEach(el => el.onclick = () => goBank({ sub: el.dataset.sub }));
@@ -1077,11 +1282,11 @@
 
     $("#quizPrev").disabled = z.i === 0;
     $("#quizNext").disabled = z.i >= z.order.length - 1;
-    const ansImgs = META.years[String(q.year)].answers;
-    $("#quizAnswer").disabled = !ansImgs.length;
-    $("#quizAnswer").textContent = ansImgs.length
-      ? `原卷答案${ansImgs.length > 1 ? `（${ansImgs.length} 页）` : ""}`
-      : "原件未附答案";
+    const ansVers = availableAnswerVersions(q.year);
+    $("#quizAnswer").disabled = !ansVers.length;
+    $("#quizAnswer").textContent = ansVers.length
+      ? `原卷答案${ansVers.length > 1 ? "（双版本）" : ""}`
+      : "整卷扫描答案未附";
 
     $$("#quizOpts .qopt").forEach(btn => btn.onclick = () => chooseQuizOption(Number(btn.dataset.i)));
     bindMistakeButtons($("#quizCard"));
@@ -1090,6 +1295,7 @@
     const sub = $("#quizSubmit");
     if (sub) sub.onclick = () => submitQuiz();
     $$(".qfig", $("#quizCard")).forEach(el => el.onclick = () => openLightbox(el.dataset.src, el.dataset.title));
+    renderMath($("#quizCard"));
   }
 
   function chooseQuizOption(i) {
@@ -1192,6 +1398,7 @@
     $("#mistakeList").innerHTML = arr.map(questionCard).join("") ||
       `<div class="panel" style="text-align:center;color:#7c8a92">当前筛选下没有错题。</div>`;
     bindCardActions($("#mistakeList"));
+    renderMath($("#mistakeList"));
   }
 
   function renderMistakeQ() {
@@ -1205,6 +1412,7 @@
     $("#mistakePrev").disabled = s.i === 0;
     $("#mistakeNext").textContent = s.i >= s.list.length - 1 ? "完成重练" : "下一题";
     bindCardActions($("#mistakeCard"));
+    renderMath($("#mistakeCard"));
   }
 
   function startMistakePractice() {
@@ -1250,17 +1458,35 @@
   }
 
   /* ---------------- answers ---------------- */
+  function saveAnswerVersion() {
+    try { localStorage.setItem(ANSWER_VER_KEY, state.answerVersion); } catch (e) { /* ignore */ }
+  }
+
+  function renderAnswerVersionChips() {
+    const keys = Object.keys(ANSWER_VERSIONS).filter(v => v !== "default");
+    renderChips($("#answerVersionChips"),
+      keys.map(v => [v, (ANSWER_VERSIONS[v].years || []).length]),
+      new Set([state.answerVersion]),
+      v => { state.answerVersion = v; saveAnswerVersion(); renderAnswerVersionChips(); renderAnswers(); },
+      v => answerVerLabel(v));
+    const info = ANSWER_VERSIONS[state.answerVersion] || {};
+    $("#answerVersionHint").textContent = info.desc || "";
+  }
+
   function renderAnswers() {
+    renderAnswerVersionChips();
+    const ver = state.answerVersion;
     $("#answerGrid").innerHTML = YEARS.slice().reverse().map(y => {
-      const imgs = META.years[String(y)].answers;
+      const imgs = answerPagesOf(y, ver);
+      const other = availableAnswerVersions(y).filter(v => v !== ver);
       const body = imgs.length
-        ? `<div class="sheets">${imgs.map((s, i) => `<div class="sheet" data-year="${y}" data-page="${i}" data-src="assets/answers/${s}" data-title="${y} 年参考答案">
-            <img src="assets/answers/${s}" loading="lazy" alt="${y} 年参考答案 ${i + 1}"></div>`).join("")}</div>`
-        : `<p class="none">原卷未附参考答案。</p>`;
-      return `<div class="answer-card"><h3>${y} 年 <span class="ans-pages">${imgs.length} 页</span></h3>${body}</div>`;
+        ? `<div class="sheets">${imgs.map((s, i) => `<div class="sheet" data-year="${y}" data-page="${i}" data-src="${answerSrc(y, ver, s)}" data-title="${y} 年参考答案 · ${answerVerLabel(ver)}">
+            <img src="${answerSrc(y, ver, s)}" loading="lazy" alt="${y} 年参考答案 ${i + 1}"></div>`).join("")}</div>`
+        : `<p class="none">${other.length ? `该版本无此年份答案，可切换到${answerVerLabel(other[0])}。` : "原卷未附参考答案。"}</p>`;
+      return `<div class="answer-card"><h3>${y} 年 <span class="ans-pages">${imgs.length} 页 · ${answerVerLabel(ver)}</span></h3>${body}</div>`;
     }).join("");
-    $$(".sheet", $("#answerGrid")).forEach((el, i) => el.onclick = () =>
-      openAnswerLightbox(el.dataset.year, Number(el.dataset.page) || 0));
+    $$(".sheet", $("#answerGrid")).forEach(el => el.onclick = () =>
+      openAnswerLightbox(el.dataset.year, Number(el.dataset.page) || 0, ver));
   }
 
   /* ---------------- lightbox / 路由 / nav ---------------- */
@@ -1281,6 +1507,21 @@
     $("#lightboxPage").textContent = `${b.i + 1} / ${srcs.length}`;
     $("#lightboxPrev").disabled = b.i === 0;
     $("#lightboxNext").disabled = b.i >= srcs.length - 1;
+
+    const vb = $("#lightboxVersions");
+    if (b.year) {
+      const vs = availableAnswerVersions(b.year);
+      vb.hidden = vs.length <= 1;
+      vb.innerHTML = vs.map(v => {
+        const pages = answerPagesOf(b.year, v);
+        const on = v === b.version;
+        return `<button class="ver-btn${on ? " on" : ""}" data-ver="${v}">${answerVerLabel(v)}<span>${pages.length} 页</span></button>`;
+      }).join("");
+      $$(".ver-btn", vb).forEach(el => el.onclick = () => switchAnswerVersion(el.dataset.ver));
+    } else {
+      vb.hidden = true;
+      vb.innerHTML = "";
+    }
     $("#lightbox").classList.add("open");
   }
   function hideBox() { $("#lightbox").classList.remove("open"); }
@@ -1289,16 +1530,31 @@
     showBox(lastBox);
     if (location.hash !== "#box") pushHash("box");
   }
-  function openAnswerLightbox(year, index = 0) {
-    const imgs = (META.years[String(year)] || {}).answers || [];
-    if (!imgs.length) return;
+  function openAnswerLightbox(year, index = 0, version = state.answerVersion) {
+    const vs = availableAnswerVersions(year);
+    if (!vs.length) return;
+    const ver = vs.indexOf(version) >= 0 ? version : vs[0];
+    const imgs = answerPagesOf(year, ver);
     lastBox = {
-      srcs: imgs.map(s => `assets/answers/${s}`),
+      year, version: ver,
+      srcs: imgs.map(s => answerSrc(year, ver, s)),
       i: Math.min(Math.max(index, 0), imgs.length - 1),
-      title: `${year} 年整卷参考答案`,
+      title: `${year} 年整卷参考答案 · ${answerVerLabel(ver)}`,
     };
     showBox(lastBox);
     if (location.hash !== "#box") pushHash("box");
+  }
+  function switchAnswerVersion(ver) {
+    if (!lastBox || !lastBox.year || !answerPagesOf(lastBox.year, ver).length) return;
+    state.answerVersion = ver;
+    saveAnswerVersion();
+    const imgs = answerPagesOf(lastBox.year, ver);
+    lastBox.version = ver;
+    lastBox.srcs = imgs.map(s => answerSrc(lastBox.year, ver, s));
+    lastBox.i = 0;
+    lastBox.title = `${lastBox.year} 年整卷参考答案 · ${answerVerLabel(ver)}`;
+    showBox(lastBox);
+    renderAnswers();
   }
   function lightboxStep(d) {
     if (!lastBox || !$("#lightbox").classList.contains("open")) return;
@@ -1336,9 +1592,11 @@
     if (v !== "mistakes") state.mistakes.active = false;
     syncTabs();
     if (v === "train") { showTrainPicker(); renderTrainPicker(); renderTrainIntro(); }
+    if (v === "ext") renderExt();
     if (v === "quiz") renderQuiz();
     if (v === "mistakes") renderMistakes();
     if (v === "stats") renderTrend();
+    if (v === "answers") renderAnswers();
     if (push) pushHash(v);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -1369,9 +1627,11 @@
     if (v !== "mistakes") state.mistakes.active = false;
     syncTabs();
     if (v === "train") { showTrainPicker(); renderTrainPicker(); renderTrainIntro(); }
+    if (v === "ext") renderExt();
     if (v === "quiz") renderQuiz();
     if (v === "mistakes") renderMistakes();
     if (v === "stats") renderTrend();
+    if (v === "answers") renderAnswers();
   }
 
   function onNav() {
@@ -1411,6 +1671,23 @@
   };
   $("#loadMore").onclick = () => { state.page += 1; renderList(); };
 
+  /* 扩展题交互 */
+  let extTimer = null;
+  $("#extSearch").addEventListener("input", e => {
+    clearTimeout(extTimer);
+    extTimer = setTimeout(() => {
+      state.ext.q = e.target.value;
+      state.ext.page = 1;
+      renderExtList();
+    }, 160);
+  });
+  $("#resetExtFilters").onclick = () => {
+    state.ext = { source: "all", type: "all", exam: "all", chapter: "all", q: "", page: 1, pageSize: 24 };
+    $("#extSearch").value = "";
+    renderExtFilters(); renderExtList();
+  };
+  $("#extLoadMore").onclick = () => { state.ext.page += 1; renderExtList(); };
+
   /* 专项训练交互 */
   $$("#trainMode .mode-btn").forEach(b => b.onclick = () => {
     state.train.mode = b.dataset.mode;
@@ -1427,8 +1704,7 @@
   $("#trainAnswer").onclick = () => {
     const q = state.train.list[state.train.i];
     if (!q) return;
-    const imgs = META.years[String(q.year)].answers;
-    if (imgs.length) openAnswerLightbox(q.year);
+    if (availableAnswerVersions(q.year).length) openAnswerLightbox(q.year, 0, state.answerVersion);
   };
 
   /* 选择题刷题交互 */
@@ -1447,8 +1723,7 @@
     const id = state.quiz.order[state.quiz.i];
     if (!id) return;
     const q = QS_ID.get(id);
-    const imgs = META.years[String(q.year)].answers;
-    if (imgs.length) openAnswerLightbox(q.year);
+    if (availableAnswerVersions(q.year).length) openAnswerLightbox(q.year, 0, state.answerVersion);
   };
 
   /* 错题本交互 */
@@ -1509,6 +1784,7 @@
   renderHeatmap();
   renderTrend();
   renderAnswers();
+  renderExt();
   renderTrainPicker();
   renderTrainIntro();
   renderQuiz();

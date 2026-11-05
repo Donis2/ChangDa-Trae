@@ -2,5 +2,10 @@
 __pycache__/
 *.pyc
 
-# 临时渲染/截图目录
-.screenshots/.tmp/
+# 临时渲染 / 截图 / 分享包
+.screenshots/
+.trae-html-share-packages/
+_build/archive/
+
+# 本地原始资料母库（约 470 MB，部署不需要）
+题目资料来源/
