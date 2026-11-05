@@ -1,3 +1,5 @@
 # Netlify 部署配置：纯静态站点，无需构建命令与环境变量
+# base 为站点目录；publish 相对 base 指向当前目录，避免与 Netlify 后台的 Base directory 重复拼接
 [build]
-  publish = "常大真题电子版/web"
+  base = "常大真题电子版/web"
+  publish = "."

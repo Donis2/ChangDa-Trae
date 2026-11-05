@@ -41,10 +41,13 @@ Netlify 直接读取 `netlify.toml`：
 
 ```toml
 [build]
-  publish = "常大真题电子版/web"
+  base = "常大真题电子版/web"
+  publish = "."
 ```
 
 无需构建命令与环境变量。站点为纯静态 HTML/CSS/JS，数据通过 `web/data/data.js`、`quiz.js`、`ext.js` 加载。
+
+注意：Netlify 后台的 **Base directory** 不要再填 `常大真题电子版/web` 以外的重复路径；`publish` 是相对 `base` 的，当前配置等价于发布 `常大真题电子版/web`。
 
 ## 题库口径
 
